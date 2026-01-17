@@ -182,12 +182,36 @@ def log_contact(
             method,
             status,
             contact or '',
-            (message[:500] + '...') if message and len(message) > 500 else (message or ''),
+            message or '',  # Full message, no truncation
             notes or '',
         ]
 
         # Append row to sheet
         worksheet.append_row(row, value_input_option='USER_ENTERED')
+
+        # Color code the row based on status
+        try:
+            row_count = len(worksheet.get_all_values())
+
+            # Define colors (RGB values 0-1)
+            if status == 'form_sent':
+                # Green for success
+                bg_color = {'red': 0.85, 'green': 0.95, 'blue': 0.85}
+            elif status == 'email_drafted':
+                # Yellow/amber for needs action
+                bg_color = {'red': 1.0, 'green': 0.95, 'blue': 0.8}
+            elif status in ['manual_review', 'form_failed', 'no_website', 'no_contact']:
+                # Red for needs attention
+                bg_color = {'red': 0.95, 'green': 0.85, 'blue': 0.85}
+            else:
+                bg_color = None
+
+            if bg_color:
+                worksheet.format(f'A{row_count}:I{row_count}', {
+                    'backgroundColor': bg_color
+                })
+        except Exception as e:
+            logger.debug(f"Could not apply color formatting: {e}")
 
         logger.info(f"Logged contact: {job_info.get('company')} - {status}")
         return True
