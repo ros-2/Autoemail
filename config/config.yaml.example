@@ -1,0 +1,62 @@
+# Job Scraping Settings
+scraping:
+  search_terms:
+    - "administrator"
+    - "receptionist"
+    - "transport administrator"
+    - "office manager"
+
+  locations:
+    - "Scotland"
+
+  job_boards:
+    - indeed_uk
+    - s1jobs
+
+  max_age_days: 2
+  max_results_per_run: 15
+
+  exclude_keywords:
+    - "NHS"
+    - "Council"
+    - "Government"
+    - "GP Practice"
+    - "Hospital"
+
+  delay_between_requests: [5, 10]
+
+# Contact Settings
+contact:
+  user_name: "Philip Ross"
+  user_email: "philip@lochross.com"
+  company_website: "lochross.com"
+  form_timeout_seconds: 10
+
+# Google Sheets Settings
+google_sheets:
+  spreadsheet_id: "your_spreadsheet_id_here"
+  service_account_path: "credentials/google_sheets_service.json"
+  worksheet_name: "Sheet1"
+
+# Email Settings
+email:
+  smtp_server: "smtp.zoho.com"
+  smtp_port: 587
+  from_email: "philip@lochross.com"
+  from_name: "Philip Ross"
+  summary_recipient: "philip@lochross.com"
+
+# Logging
+logging:
+  path: "output/outreach.log"
+  level: "INFO"
+
+# Deduplication
+deduplication:
+  skip_days: 30
+  match_any_job: true
+
+# Rate Limiting
+rate_limiting:
+  max_contacts_per_day: 10
+  delay_between_contacts: [5, 10]
