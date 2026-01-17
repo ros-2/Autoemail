@@ -25,26 +25,57 @@ def load_config() -> dict:
 
 
 # Message template for Claude
-MESSAGE_PROMPT_TEMPLATE = """Write a brief, direct business enquiry for a Scottish automation consultant.
+MESSAGE_PROMPT_TEMPLATE = """You are writing an outreach message for Philip Ross, a Scottish automation consultant.
+Match his writing style exactly based on these real examples he's written:
 
-Context:
+EXAMPLE 1:
+"Since my internship ended, I have started working on finding the work people don't need to do. Then I automate it. To allow people to get more done at work by cutting repetitive tasks and processes.
+From what I could find on Redpath Bruce it looks like you may use the CPL software.
+One suggestion I researched was that CPL seems to not keep track on the progress of complaints, nor does it fully automate dealing with them.
+Alternatively, there may be other tasks that are taking up your team's time which could be worth looking into.
+If this is of any interest, I'd be glad to discuss with you."
+
+EXAMPLE 2:
+"I focus on finding the tasks that don't need done by humans that drain time in companies. Then I automate it.
+Alan thought that these would be worth thinking about:
+- SER Automation - to speed up the process
+- Drawing Revision Spotting - to stop changes being missed
+- Writing reports - for standardisation and speed
+- Quote generation - for speed and avoiding under pricing
+The aim would be to cut time on a contract, catch mistakes, and allow an increase in the number of contracts you can take on.
+If you would like to discuss, I would be glad to do so."
+
+KEY STYLE ELEMENTS:
+- Conversational, not corporate
+- "I focus on finding the tasks that don't need done by humans. Then I automate it."
+- Suggests SPECIFIC automation ideas as bullet points (guess intelligently based on their job posting)
+- Shows value: "cut time", "catch mistakes", "speed up", "stop X being missed"
+- Soft close: "If this is of any interest, I'd be glad to discuss with you"
+- Scottish phrasing: "I'd be glad to discuss" not "Let's schedule a call"
+- NO salesy language, NO "game-changer", NO "transform your business"
+
+NOW WRITE A MESSAGE FOR:
 - Company: {company}
 - Location: {location}
-- They just posted a job for: {job_title}
-- Consultant: Philip Ross at Lochross
-- Website: lochross.com
-- Previous work: Saved Blythswood Care 15hrs/week through EPOS automation, built Scripture verification system for Christian Focus Publications
+- They posted a job for: {job_title}
 
-Write an 80-word message that:
-1. References their specific job posting for {job_title}
-2. Suggests automation as an alternative or complement to hiring
-3. Offers a brief call or demo
-4. Links to lochross.com
-5. Uses a Scottish tone - direct, no fluff, no corporate jargon
+Based on the job title "{job_title}", suggest 2-4 specific automation ideas that could help with tasks that role typically handles. Be specific and practical.
 
-Format as plain text suitable for a contact form or email body. No greeting line needed (just start with the message). No sign-off needed.
+FORMAT:
+- Start with a brief intro about what Philip does (1-2 sentences)
+- Note their job posting
+- List 2-4 bullet points of automation suggestions relevant to that role
+- End with soft close and mention lochross.com
 
-Important: Keep it under 80 words. Be specific about their job posting. Sound human and helpful, not salesy."""
+IMPORTANT: Keep the message SHORT - under 120 words total (excluding sign-off). Only 2-3 bullet points max.
+
+Sign off with:
+Kind Regards,
+
+Philip Ross
+Automation Consultant
+philip@lochross.com
+lochross.com"""
 
 
 def generate_message(job_info: Dict) -> Optional[str]:
@@ -81,7 +112,7 @@ def generate_message(job_info: Dict) -> Optional[str]:
 
         message = client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=300,
+            max_tokens=500,
             messages=[
                 {
                     "role": "user",
@@ -117,13 +148,25 @@ def get_fallback_message(job_info: Dict) -> str:
     company = job_info.get('company', 'your company')
     job_title = job_info.get('title', 'administrator')
 
-    return f"""I noticed you're looking for a {job_title}. Before you commit to a new hire, I'd like to show you how automation could handle some of those tasks.
+    return f"""I focus on finding the tasks that don't need done by humans that drain time in companies. Then I automate it.
 
-I'm Philip Ross from Lochross - I help Scottish businesses automate their admin work. Recently saved Blythswood Care 15 hours a week by automating their EPOS reporting.
+I noticed you're looking for a {job_title}. Before committing to a new hire, there may be tasks that could be automated instead:
 
-Would you be open to a quick call to see if automation could help? No pressure, just a conversation.
+- Data entry and form filling - to cut repetitive work
+- Report generation - for speed and standardisation
+- Email sorting and responses - to stop distractions
+- Invoice processing - to avoid mistakes and delays
 
-More at lochross.com"""
+The aim would be to free up your team's time for work that actually needs a human.
+
+If this is of any interest, I'd be glad to discuss with you.
+
+Kind Regards,
+
+Philip Ross
+Automation Consultant
+philip@lochross.com
+lochross.com"""
 
 
 def generate_subject_line(job_info: Dict) -> str:

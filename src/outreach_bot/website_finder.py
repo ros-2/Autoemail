@@ -1,12 +1,18 @@
-"""Website finder using Google search to find company websites."""
+"""Website finder using Selenium to find company websites."""
 import random
 import re
 import time
 from typing import Optional
 from urllib.parse import quote_plus, urlparse
 
-import requests
-from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, WebDriverException
+from webdriver_manager.chrome import ChromeDriverManager
 
 from .utils.logger import get_logger
 from .utils.validators import is_job_board_url, validate_url, clean_company_name
@@ -20,10 +26,44 @@ USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
 ]
 
+# Shared driver instance
+_driver = None
+
+
+def get_driver() -> webdriver.Chrome:
+    """Get or create a shared Chrome driver."""
+    global _driver
+    if _driver is None:
+        options = Options()
+        options.add_argument(f'user-agent={random.choice(USER_AGENTS)}')
+        options.add_argument('--headless=new')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-gpu')
+        options.add_argument('--window-size=1920,1080')
+        options.add_argument('--disable-blink-features=AutomationControlled')
+        prefs = {'profile.managed_default_content_settings.images': 2}
+        options.add_experimental_option('prefs', prefs)
+
+        service = Service(ChromeDriverManager().install())
+        _driver = webdriver.Chrome(service=service, options=options)
+    return _driver
+
+
+def close_driver():
+    """Close the shared driver."""
+    global _driver
+    if _driver:
+        try:
+            _driver.quit()
+        except Exception:
+            pass
+        _driver = None
+
 
 def search_google(query: str, num_results: int = 5) -> list:
     """
-    Perform a Google search and return result URLs.
+    Perform a Google search using Selenium and return result URLs.
 
     Args:
         query: Search query string
@@ -32,74 +72,48 @@ def search_google(query: str, num_results: int = 5) -> list:
     Returns:
         List of URLs from search results
     """
-    headers = {
-        'User-Agent': random.choice(USER_AGENTS),
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-GB,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-    }
-
     encoded_query = quote_plus(query)
     url = f"https://www.google.com/search?q={encoded_query}&num={num_results + 5}&hl=en"
 
     try:
-        # Add random delay to avoid rate limiting
-        time.sleep(random.uniform(1, 3))
+        driver = get_driver()
+        driver.get(url)
+        time.sleep(random.uniform(2, 4))
 
-        response = requests.get(url, headers=headers, timeout=10)
-
-        if response.status_code == 429:
-            logger.warning("Google rate limit hit. Waiting before retry...")
-            time.sleep(30)
-            return []
-
-        if response.status_code != 200:
-            logger.warning(f"Google search returned status {response.status_code}")
-            return []
-
-        soup = BeautifulSoup(response.text, 'html.parser')
-
-        # Find search result links
         urls = []
 
-        # Try multiple selectors for Google results
+        # Find search result links
         selectors = [
             'div.g a[href^="http"]',
             'div.yuRUbf a',
-            'a[data-ved]',
-            '.r a',
+            'a[data-ved][href^="http"]',
         ]
 
         for selector in selectors:
-            links = soup.select(selector)
-            for link in links:
-                href = link.get('href', '')
-                if href.startswith('http') and 'google' not in href:
-                    # Clean up Google redirect URLs
-                    if '/url?q=' in href:
-                        href = href.split('/url?q=')[1].split('&')[0]
-
-                    if validate_url(href) and href not in urls:
-                        urls.append(href)
-
-                    if len(urls) >= num_results:
-                        break
-
+            try:
+                links = driver.find_elements(By.CSS_SELECTOR, selector)
+                for link in links:
+                    href = link.get_attribute('href')
+                    if href and href.startswith('http') and 'google' not in href:
+                        if validate_url(href) and href not in urls:
+                            urls.append(href)
+                        if len(urls) >= num_results:
+                            break
+            except Exception:
+                continue
             if len(urls) >= num_results:
                 break
 
         return urls[:num_results]
 
-    except requests.RequestException as e:
+    except WebDriverException as e:
         logger.error(f"Error performing Google search: {e}")
         return []
 
 
 def search_duckduckgo(query: str, num_results: int = 5) -> list:
     """
-    Fallback search using DuckDuckGo HTML.
+    Fallback search using DuckDuckGo with Selenium.
 
     Args:
         query: Search query string
@@ -108,46 +122,32 @@ def search_duckduckgo(query: str, num_results: int = 5) -> list:
     Returns:
         List of URLs from search results
     """
-    headers = {
-        'User-Agent': random.choice(USER_AGENTS),
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-GB,en;q=0.5',
-    }
-
     encoded_query = quote_plus(query)
-    url = f"https://html.duckduckgo.com/html/?q={encoded_query}"
+    url = f"https://duckduckgo.com/?q={encoded_query}&t=h_&ia=web"
 
     try:
-        time.sleep(random.uniform(1, 2))
-
-        response = requests.get(url, headers=headers, timeout=10)
-
-        if response.status_code != 200:
-            logger.warning(f"DuckDuckGo search returned status {response.status_code}")
-            return []
-
-        soup = BeautifulSoup(response.text, 'html.parser')
+        driver = get_driver()
+        driver.get(url)
+        time.sleep(random.uniform(2, 4))
 
         urls = []
-        results = soup.select('.result__url, .result__a')
 
-        for result in results:
-            href = result.get('href', '')
-            if not href:
-                # Try to get URL from text
-                url_text = result.get_text().strip()
-                if url_text and '.' in url_text:
-                    href = f"https://{url_text}" if not url_text.startswith('http') else url_text
-
-            if href and validate_url(href) and href not in urls:
-                urls.append(href)
-
-            if len(urls) >= num_results:
-                break
+        # Find result links
+        try:
+            links = driver.find_elements(By.CSS_SELECTOR, 'a[data-testid="result-title-a"], article a[href^="http"]')
+            for link in links:
+                href = link.get_attribute('href')
+                if href and href.startswith('http') and 'duckduckgo' not in href:
+                    if validate_url(href) and href not in urls:
+                        urls.append(href)
+                    if len(urls) >= num_results:
+                        break
+        except Exception:
+            pass
 
         return urls[:num_results]
 
-    except requests.RequestException as e:
+    except WebDriverException as e:
         logger.error(f"Error performing DuckDuckGo search: {e}")
         return []
 

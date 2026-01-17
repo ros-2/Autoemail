@@ -25,6 +25,15 @@ from .utils.logger import get_logger
 
 logger = get_logger('outreach_bot.scraper')
 
+
+def clean_text(text: str) -> str:
+    """Clean text by taking first line only and stripping whitespace."""
+    if not text:
+        return ""
+    # Take first line only (removes location mixed in with company name)
+    return text.split('\n')[0].strip()
+
+
 # User agents for rotation
 USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -227,14 +236,14 @@ def scrape_indeed(driver: webdriver.Chrome, config: dict, max_results: int = 15)
                         # Extract company name
                         try:
                             company_elem = card.find_element(By.CSS_SELECTOR, '[data-testid="company-name"], .companyName, [class*="company"]')
-                            company = company_elem.text.strip()
+                            company = clean_text(company_elem.text)
                         except NoSuchElementException:
                             company = "Unknown Company"
 
                         # Extract location
                         try:
                             location_elem = card.find_element(By.CSS_SELECTOR, '[data-testid="text-location"], .companyLocation, [class*="location"]')
-                            job_location = location_elem.text.strip()
+                            job_location = clean_text(location_elem.text)
                         except NoSuchElementException:
                             job_location = location
 

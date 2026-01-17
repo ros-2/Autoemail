@@ -228,6 +228,8 @@ def check_already_contacted(company_name: str, days: int = 30) -> bool:
 
         # Check each row (skip header)
         company_lower = company_name.lower().strip()
+        # Also get first word for fuzzy matching
+        company_first_word = company_lower.split()[0] if company_lower else ""
 
         for row in all_records[1:]:
             if len(row) < 2:
@@ -243,10 +245,15 @@ def check_already_contacted(company_name: str, days: int = 30) -> bool:
             if row_date < cutoff_date:
                 continue
 
-            # Check company name (column 1)
+            # Check company name (column 1) - flexible matching
             row_company = row[1].lower().strip()
+            row_company_first_line = row_company.split('\n')[0].strip()
 
-            if company_lower == row_company:
+            # Match if: exact match, or first line matches, or company name is contained
+            if (company_lower == row_company or
+                company_lower == row_company_first_line or
+                company_lower in row_company or
+                row_company_first_line in company_lower):
                 logger.debug(f"Company '{company_name}' was contacted on {row[0]}")
                 return True
 
