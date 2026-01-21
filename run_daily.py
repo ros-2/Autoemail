@@ -36,6 +36,7 @@ from src.outreach_bot import (
     sheets_logger,
     setup_logger,
     send_summary_email,
+    send_outreach_email,
 )
 
 
@@ -70,6 +71,7 @@ def main():
     # Results tracking
     results = {
         'forms_sent': 0,
+        'emails_sent': 0,
         'emails_drafted': 0,
         'manual_review': [],
         'errors': [],
@@ -176,23 +178,37 @@ def main():
                             )
                             logger.info("  -> MANUAL REVIEW needed")
             else:
-                # No form, try email
+                # No form, try email - send automatically
                 logger.info("  No contact form found, looking for email...")
                 email = contact_finder.find_email(website)
 
                 if email:
                     logger.info(f"  Email found: {email}")
+                    subject = email_drafter.generate_subject_line(job)
 
                     if args.dry_run:
-                        logger.info("  -> DRY RUN: Would draft email")
+                        logger.info("  -> DRY RUN: Would send email")
+                        results['emails_sent'] += 1
                     else:
-                        sheets_logger.log_contact(
-                            job, 'email', 'email_drafted',
-                            contact=email, message=message
-                        )
+                        # Send the email automatically
+                        email_success = send_outreach_email(email, subject, message)
 
-                    results['emails_drafted'] += 1
-                    logger.info(f"  -> EMAIL DRAFTED for {email}")
+                        if email_success:
+                            results['emails_sent'] += 1
+                            sheets_logger.log_contact(
+                                job, 'email', 'email_sent',
+                                contact=email, message=message
+                            )
+                            logger.info(f"  -> EMAIL SENT to {email}")
+                        else:
+                            # Email failed, log as drafted for manual follow-up
+                            results['emails_drafted'] += 1
+                            sheets_logger.log_contact(
+                                job, 'email', 'email_drafted',
+                                contact=email, message=message,
+                                notes='Auto-send failed'
+                            )
+                            logger.warning(f"  -> EMAIL SEND FAILED, drafted for {email}")
                 else:
                     logger.warning("  -> No contact method found")
                     results['manual_review'].append(job)
@@ -221,6 +237,7 @@ def main():
     logger.info("DAILY RUN COMPLETE")
     logger.info("=" * 60)
     logger.info(f"Forms submitted:  {results['forms_sent']}")
+    logger.info(f"Emails sent:      {results['emails_sent']}")
     logger.info(f"Emails drafted:   {results['emails_drafted']}")
     logger.info(f"Manual review:    {len(results['manual_review'])}")
     logger.info(f"Skipped:          {results['skipped']}")

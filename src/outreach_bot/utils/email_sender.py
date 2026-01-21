@@ -1,4 +1,4 @@
-"""Email sending utilities for daily summary reports."""
+"""Email sending utilities for outreach and daily summary reports."""
 import os
 import smtplib
 from email.mime.text import MIMEText
@@ -16,6 +16,65 @@ from .logger import get_logger
 load_dotenv()
 
 logger = get_logger('outreach_bot.email')
+
+
+def send_outreach_email(to_email: str, subject: str, message: str) -> bool:
+    """
+    Send an outreach email to a prospective client.
+
+    Args:
+        to_email: Recipient email address
+        subject: Email subject line
+        message: Email body content
+
+    Returns:
+        True if email sent successfully, False otherwise
+    """
+    config = load_config()
+    email_config = config.get('email', {})
+
+    smtp_server = email_config.get('smtp_server', 'smtp.zoho.com')
+    smtp_port = email_config.get('smtp_port', 587)
+    from_email = email_config.get('from_email', 'philip@lochross.com')
+    from_name = email_config.get('from_name', 'Philip Ross')
+
+    password = os.getenv('EMAIL_APP_PASSWORD')
+
+    if not password:
+        logger.error("EMAIL_APP_PASSWORD not found in environment variables")
+        return False
+
+    # Create message
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = subject
+    msg['From'] = f"{from_name} <{from_email}>"
+    msg['To'] = to_email
+
+    # Add greeting to message
+    full_message = f"Hello,\n\n{message}"
+
+    # Plain text version
+    text_part = MIMEText(full_message, 'plain')
+    msg.attach(text_part)
+
+    try:
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(from_email, password)
+            server.send_message(msg)
+
+        logger.info(f"Outreach email sent to {to_email}")
+        return True
+
+    except smtplib.SMTPAuthenticationError:
+        logger.error("SMTP authentication failed. Check email credentials.")
+        return False
+    except smtplib.SMTPException as e:
+        logger.error(f"SMTP error sending outreach email: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Error sending outreach email to {to_email}: {e}")
+        return False
 
 
 def load_config() -> dict:
@@ -99,11 +158,12 @@ def send_summary_email(results: Dict) -> bool:
 def build_summary_body(results: Dict) -> str:
     """Build plain text email body."""
     forms_sent = results.get('forms_sent', 0)
+    emails_sent = results.get('emails_sent', 0)
     emails_drafted = results.get('emails_drafted', 0)
     manual_review = results.get('manual_review', [])
     errors = results.get('errors', [])
 
-    total_processed = forms_sent + emails_drafted + len(manual_review)
+    total_processed = forms_sent + emails_sent + emails_drafted + len(manual_review)
 
     lines = [
         "LOCHROSS OUTREACH - DAILY SUMMARY",
@@ -113,7 +173,8 @@ def build_summary_body(results: Dict) -> str:
         "",
         "RESULTS:",
         f"  - Contact forms submitted: {forms_sent}",
-        f"  - Emails drafted (ready to send): {emails_drafted}",
+        f"  - Emails sent: {emails_sent}",
+        f"  - Emails drafted (needs manual send): {emails_drafted}",
         f"  - Needs manual review: {len(manual_review)}",
         f"  - Total processed: {total_processed}",
         "",
@@ -160,11 +221,12 @@ def build_summary_body(results: Dict) -> str:
 def build_summary_html(results: Dict) -> str:
     """Build HTML email body."""
     forms_sent = results.get('forms_sent', 0)
+    emails_sent = results.get('emails_sent', 0)
     emails_drafted = results.get('emails_drafted', 0)
     manual_review = results.get('manual_review', [])
     errors = results.get('errors', [])
 
-    total_processed = forms_sent + emails_drafted + len(manual_review)
+    total_processed = forms_sent + emails_sent + emails_drafted + len(manual_review)
 
     html = f"""
     <!DOCTYPE html>
@@ -174,8 +236,8 @@ def build_summary_html(results: Dict) -> str:
             body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
             .header {{ background: #2c3e50; color: white; padding: 20px; text-align: center; }}
             .content {{ padding: 20px; }}
-            .stats {{ display: flex; gap: 20px; margin: 20px 0; }}
-            .stat-box {{ background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; flex: 1; }}
+            .stats {{ display: flex; flex-wrap: wrap; gap: 15px; margin: 20px 0; }}
+            .stat-box {{ background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; flex: 1; min-width: 120px; }}
             .stat-number {{ font-size: 32px; font-weight: bold; color: #2c3e50; }}
             .stat-label {{ color: #666; font-size: 14px; }}
             .success {{ color: #27ae60; }}
@@ -196,6 +258,10 @@ def build_summary_html(results: Dict) -> str:
                 <div class="stat-box">
                     <div class="stat-number success">{forms_sent}</div>
                     <div class="stat-label">Forms Submitted</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number success">{emails_sent}</div>
+                    <div class="stat-label">Emails Sent</div>
                 </div>
                 <div class="stat-box">
                     <div class="stat-number warning">{emails_drafted}</div>

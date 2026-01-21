@@ -5,7 +5,7 @@ from . import contact_finder
 from . import email_drafter
 from . import form_filler
 from . import sheets_logger
-from .utils import setup_logger, get_logger, send_summary_email
+from .utils import setup_logger, get_logger, send_summary_email, send_outreach_email
 
 __all__ = [
     'scraper',
@@ -17,4 +17,5 @@ __all__ = [
     'setup_logger',
     'get_logger',
     'send_summary_email',
+    'send_outreach_email',
 ]
